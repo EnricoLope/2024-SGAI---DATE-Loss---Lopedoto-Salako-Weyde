@@ -1,0 +1,278 @@
+\documentclass{beamer}
+\usetheme{Madrid}
+\usecolortheme{whale}
+\usepackage{amsmath}
+\usepackage{graphicx}
+\usepackage{tikz}
+\usepackage{pgfplots}
+\usepackage{booktabs}
+\usepackage{multirow}
+
+\setbeamertemplate{footline}[frame number]{}
+\setbeamertemplate{navigation symbols}{}
+\titlegraphic{
+\includegraphics[width=2cm]{SGAI/city-st-georges-logo.png}
+}
+\pgfplotsset{compat=1.18}
+
+
+\title[DATE]{DATE: Derivative Alignment Training Extrapolation}
+\author{E. Lopedoto, T. Weyde, and K. Salako}
+\institute{City St George's, University of London}
+\date{SGAI,Dec 2024}
+
+\begin{document}
+
+\begin{frame}
+    \titlepage
+\end{frame}
+
+\begin{frame}{Problem: Neural Network Extrapolation}
+    \begin{itemize}
+        \item Neural Networks often struggle with extrapolation beyond training data
+        \item We like ReLU
+        \begin{enumerate}
+            \item Natural linear extrapolation capability - unbounded
+            \item Non-differentiable at x = 0 ("0-points")
+            \item Cheap to compute
+        \end{enumerate}
+        \item Two key issues with ReLU networks:
+        \begin{enumerate}
+            \item Non-linearities outside training range produce no learning
+            \item High variation in model derivative
+        \end{enumerate}
+    \end{itemize}
+\end{frame}
+
+\begin{frame}{Our contribution}
+    \begin{figure}[t]
+     \centering 
+     \includegraphics[trim={1cm 1cm 1cm 1.9cm},clip, width=0.49\linewidth]{pics/SpagPred_pow_MSE__96355ae8-7134-11ef-8273-4b5d8eb7968f.eps}
+     \includegraphics[trim={1cm 1cm 1cm 1.9cm},clip, width=0.49\linewidth]{pics/DerivPlot_pow_MSE__96355ae9-7134-11ef-8273-4b5d8eb7968f.eps}
+    \caption{(a) Extrapolation with data trained in the range [-2,2]. (b) Interpolation range [-2,2] }
+\end{figure}
+
+    \begin{itemize}
+        \item Solution to 1: Internal Range (IR) method
+        \item Solution to 2: Derivative Loss (D1) method
+    \end{itemize}
+\end{frame}
+
+\begin{frame}{ReLEx - Lopedoto et al., 2020}
+    \begin{table}[t!]
+     \centering
+     \begin{tabular}{llcc} \hline
+     Loss Name  & Definition & Complexity \\
+     \hline \hline
+     CP - Centripetal  & $\sum_{h=1}^H \sum_{k=1}^K (x_{h0} - x_{k})^2$ & $O(H K)$ \\
+     \hfill
+     \\
+     MR - Mutually Repellent & $\sum_{h=1}^H \sum_{j>i}^H \frac{1}{(x_{h0} - x_{j0})^2+ \varepsilon}$ & $O(H^2)$ \\ 
+     \hfill
+     \\
+     WO - Weight Orientation & $- \sum_{h=1}^H {ReLU((x_{h0} - \bar{x})\cdot w_h + \varepsilon)}$ & $O(H)$ \\
+     \hfill
+     \\
+     WS - Weight Sign $ & $({\sum_{h=1}^Hw_h})^2$ & $O(H)$ 
+     \\
+     \hline
+    \end{tabular}
+    
+    \caption{The loss terms used in ReLEx improve extrapolation. 
+    $K$ is the number of data points.
+    $H$ is the number of hidden neurons. 
+    $x_{h0}$ is the \emph{0-point} of hidden neuron $h$ (dependent only on the network weights $w_h$ and $b_h$).
+    $\bar{x}$ is the average of the training data. 
+    The complexity refers to a single calculation of the loss value. 
+    }
+     
+    \end{table}
+\end{frame}
+
+\begin{frame}{The DATE Method}
+    Two new regularization terms:
+    \begin{enumerate}
+        \item IR-loss ($L_{IR}$):
+        \begin{itemize}
+            \item Keeps 0-points inside training data range
+            \item More efficient than ReLEx approach
+        \end{itemize}
+        \item D1-loss ($L_{D1}$):
+        \begin{itemize}
+            \item Penalizes deviation of model derivative from target derivative
+            \item Estimated from training data points
+        \end{itemize}
+        
+    \end{enumerate}
+\end{frame}
+
+\begin{frame}{IR-Loss Implementation}
+    \begin{itemize}
+        \item Purpose: Keep 0-points within training range
+        \item Formula:
+        \[ L_{IR} = \sum_{k=1}^K (ReLU(-x_{k0} + L - \tau) + ReLU(x_{k0} - R + \tau))^2 \]
+        where:
+        \begin{itemize}
+            \item $L$, $R$: Left and right bounds of training range
+            \item $\tau$: Margin parameter
+            \item $x_{k0}$: 0-point of neuron k
+        \end{itemize}
+        \item Complexity: O(K) vs O(H²) in ReLEx
+    \end{itemize}
+\end{frame}
+
+\begin{frame}{D1-Loss Implementation}
+    \begin{itemize}
+        \item Derivative estimation:
+        \[ y'_k = \frac{y_{k+1} - y_k}{x_{k+1} - x_k} \]
+        \item Model derivative:
+        \[ \hat{f}'(x) = \frac{\hat{f}(x + \epsilon) - \hat{f}(x - \epsilon)}{2\epsilon} \]
+        \item D1-loss:
+        \[ L_{D1} = \sum_{(x',y')\in XY'} (y' - \hat{f}'(x'))^2 \]
+    \end{itemize}
+\end{frame}
+
+
+
+
+%\begin{frame}{Background: ReLU Networks}
+%    \begin{itemize}
+%        \item Properties:
+%        \begin{itemize}
+%            \item Natural linear extrapolation capability
+%            \item Non-differentiable at x = 0 ("0-points")
+%            \item "Dying ReLU" problem when inputs are always negative
+%        \end{itemize}
+%        \item Simple feedforward network:
+%        \[ f(x,\beta) = b_o + \sum_{h=1}^H w_{ho} \cdot ReLU(w_h x + b_h) \]
+%    \end{itemize}
+%\end{frame}
+
+\begin{frame}{Experimental Setup}
+    \begin{itemize}
+        \item Network: Single hidden layer, 10 neurons
+        \item ReLU activation: $ReLU(x) = max(0,x)$
+
+        \item Training data:
+        \begin{itemize}
+            \item Range: [-2, 2]
+            \item 200 equidistant points
+            \item Test functions: linear, absolute, quadratic, sigmoid, sine
+        \end{itemize}
+        \item Hyperparameters:
+        \begin{itemize}
+            \item Learning rate: 0.007
+            \item Momentum: 0.9
+            \item 700 epochs, batch size 20
+        \end{itemize}
+    \end{itemize}
+\end{frame}
+
+
+\begin{frame}{Evaluation Metrics}
+    \begin{itemize}
+        \item Interpolation metrics:
+        \begin{itemize}
+            \item $MSE_{int}$: Error in training range
+            \item $MSE_{D1}$: Derivative error in training range
+        \end{itemize}
+        \item Extrapolation metrics:
+        \begin{itemize}
+            \item $Tan_{ex}$: Error vs tangent lines
+            \item $D1_{ex}$: Error vs last two points slope
+            \item $WLR_{ex}$: Error vs weighted linear regression
+            
+        \end{itemize}
+        \item Consistency: $\sigma_S$ (slope standard deviation)
+    \end{itemize}
+\end{frame}
+
+
+\begin{frame}{DATE Configurations}
+    Three variants tested:
+    \begin{enumerate}
+        \item $DATE_1$: Full ReLEx + $L_{D1}$
+        \item $DATE_2$: $L_{WO} + L_{WS} + L_{IR} + L_{D1}$
+        \item $DATE_3$: $L_{WS} + L_{IR} + L_{D1}$
+    \end{enumerate}
+    Key differences:
+    \begin{itemize}
+        \item $DATE_1$: Most complex but stable
+        \item $DATE_2$: Balanced performance
+        \item $DATE_3$: Simplest configuration
+    \end{itemize}
+\end{frame}
+
+
+\begin{frame}{Results: Method Comparison - Pow function}
+   \begin{table}
+     \centering
+     \begin{tabular}{l|l|rrr|Rrr}
+     $f(x)$ & Loss & $\sigma_{S}$ & 
+     $MSE_{int}$ & $MSE_{D1}$ & $Tan_{ex}$ & $WLR_{ex}$ & $D1_{ex}$ \\
+     \hline 
+     
+    \multirow{5}{0.8cm}{$pow$} 
+     & $MSE$ &  0.479 & 0.081 & 0.808 & 8.974 & 5.317 & 8.958 \\
+     & $ReLEx$ & 0.014 & 0.036 & 0.673 & 2.970 & 0.244 & 2.955 \\
+     & $DATE_1$ & \textbf{0.017} & 0.038 & 0.511 & 2.376 & \textbf{0.460} & 2.362 \\
+     & $DATE_2$ &  0.021 & \textbf{0.007} & 0.108 & \textbf{0.141} & 3.463 & \textbf{0.138} \\
+     & $DATE_3$ & 0.035 & 0.011 &\textbf{ 0.097} & 0.206 & 3.272 & 0.202 \\
+     \hline
+     \hline
+     \end{tabular}
+    \end{table}
+
+    \begin{figure}
+     \centering 
+
+     \includegraphics[trim={0.5cm 0cm 1cm 2cm},clip, width=0.3\linewidth]{pics/DerivPlot_pow_ReLEx__4eeb8531-7135-11ef-8273-4b5d8eb7968f.eps}
+     \includegraphics[trim={0.5cm 0cm 1cm 2cm},clip, width=0.3\linewidth]{pics/DerivPlot_pow_ReLEx__b0ce38b1-7135-11ef-8273-4b5d8eb7968f.eps}
+     \includegraphics[trim={0.5cm 0cm 1cm 2cm},clip, width=0.3\linewidth]{pics/DerivPlot_pow_ReLEx__15c78ebb-7136-11ef-8273-4b5d8eb7968f.eps}
+    
+    
+     \begin{tabular}{p{0.3\linewidth} p{0.3\linewidth} p{0.3\linewidth}}
+    $DATE_1$ & $DATE_2$ & $DATE_3$
+     
+     \end{tabular} 
+    \end{figure}
+\end{frame}
+
+
+\begin{frame}{Conclusion}
+    \begin{itemize}
+        \item DATE improves extrapolation while maintaining good interpolation
+        \item Key advantages:
+        \begin{itemize}
+            \item Better derivative alignment
+            \item More efficient than ReLEx
+            \item Multiple configuration options
+        \end{itemize}
+    
+    \end{itemize}
+\end{frame}
+
+
+\begin{frame}{Improvements \& Future Work}
+    \begin{itemize}
+        \item Current limitations:
+        \begin{itemize}
+            \item Only univariate regression
+            \item Single hidden layer
+            \item Assumes linear extrapolation is desired
+            \item Sensitivity to noise at margins
+        \end{itemize}
+        \item Future work:
+        \begin{itemize}
+            \item Extension to multiple dimensions
+            \item Different network architectures
+            \item Higher-order derivatives
+            \item Working with Smoothing
+        \end{itemize}
+    \end{itemize}
+\end{frame}
+
+
+
+
+\end{document}
